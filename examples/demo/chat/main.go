@@ -56,6 +56,18 @@ type (
 		outboundBytes int
 		inboundBytes  int
 	}
+
+	// TestComponent 简单的测试组件
+	TestComponent struct {
+		component.Base
+		counter int
+	}
+
+	// TestResponse 测试响应消息
+	TestResponse struct {
+		Message string `json:"message"`
+		Counter int    `json:"counter"`
+	}
 )
 
 var mySchedulerInstance scheduler.LocalScheduler
@@ -77,6 +89,30 @@ func (stats *stats) AfterInit() {
 	})
 }
 
+// NewTestComponent 创建新的测试组件
+func NewTestComponent() *TestComponent {
+	return &TestComponent{
+		counter: 0,
+	}
+}
+
+// AfterInit 测试组件初始化
+func (tc *TestComponent) AfterInit() {
+	session.Lifetime.OnClosed(func(s *session.Session) {
+		println("================TestComponent: OnSessionClosed called for session ID:", s.ID())
+	})
+}
+
+// Ping 简单的ping方法
+func (tc *TestComponent) Ping(s *session.Session, msg []byte) error {
+	tc.counter++
+	response := &TestResponse{
+		Message: "pong",
+		Counter: tc.counter,
+	}
+	return s.Response(response)
+}
+
 const (
 	testRoomID = 1
 	roomIDKey  = "ROOM_ID"
@@ -91,6 +127,7 @@ func NewRoomManager() *RoomManager {
 // AfterInit component lifetime callback
 func (mgr *RoomManager) AfterInit() {
 	session.Lifetime.OnClosed(func(s *session.Session) {
+		fmt.Println("===============RoomManager: OnSessionClosed called for session ID:", s.ID())
 		if !s.HasKey(roomIDKey) {
 			return
 		}
@@ -143,6 +180,13 @@ func main() {
 		component.WithName("room"), // rewrite component and handler name
 		component.WithNameFunc(strings.ToLower),
 		component.WithSchedulerName("my-custom-scheduler"), // 设置调度器名
+	)
+
+	// 注册测试组件
+	components.Register(
+		NewTestComponent(),
+		component.WithName("test"), // 测试组件名称
+		component.WithNameFunc(strings.ToLower),
 	)
 
 	var err error
